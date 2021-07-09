@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell, CPP #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
--- We can't warn about missing sigs as we have a group of decls in
+-- | We can't warn about missing sigs as we have a group of decls in
 -- quasi-quotes that we're going to put in a class instance
 
 --
@@ -54,14 +54,18 @@ deriveTypeablePrim name nParam
  where index [] _ = Nothing
        index (x:_) 0 = Just x
        index (_:xs) n = index xs (n - 1)
-       names = [(''Typeable, 'typeOf),
-                (''Typeable1, 'typeOf1),
-                (''Typeable2, 'typeOf2),
-                (''Typeable3, 'typeOf3),
-                (''Typeable4, 'typeOf4),
-                (''Typeable5, 'typeOf5),
-                (''Typeable6, 'typeOf6),
-                (''Typeable7, 'typeOf7)]
+       names = [ (''Typeable, 'typeOf)
+#if MIN_VERSION_base(4,11,0)
+#else
+               , (''Typeable1, 'typeOf1)
+               , (''Typeable2, 'typeOf2)
+               , (''Typeable3, 'typeOf3)
+               , (''Typeable4, 'typeOf4)
+               , (''Typeable5, 'typeOf5)
+               , (''Typeable6, 'typeOf6)
+               , (''Typeable7, 'typeOf7)
+#endif
+               ]
 #endif
 
 type Constructor = (Name,         -- Name of the constructor
@@ -232,11 +236,15 @@ deriveMinimalData name nParam  = do
              |]
 #endif
 
-{- instance Data NameSet where
+{- |
+   @@
+   instance Data NameSet where
    gunfold _ _ _ = error ("gunfold not implemented")
    toConstr x = error ("toConstr not implemented for " ++ show (typeOf x))
    dataTypeOf x = error ("dataTypeOf not implemented for " ++ show (typeOf x))
-   gfoldl f z x = z x -}
+   gfoldl f z x = z x
+   @@
+-}
 
 typeInfo :: Dec
          -> Q (Name,            -- Name of the datatype
@@ -244,8 +252,13 @@ typeInfo :: Dec
                [Constructor])   -- The constructors
 typeInfo d
  = case d of
+#if MIN_VERSION_template_haskell(2,11,0)
+   DataD    _ n ps _ cs _ -> return (n, map varName ps, map conA cs)
+   NewtypeD _ n ps _ c  _ -> return (n, map varName ps, [conA c])
+#else
    DataD    _ n ps cs _ -> return (n, map varName ps, map conA cs)
    NewtypeD _ n ps c  _ -> return (n, map varName ps, [conA c])
+#endif
    _ -> error ("derive: not a data type declaration: " ++ show d)
  where conA (NormalC c xs)   = (c, length xs, Nothing, map snd xs)
        conA (InfixC x1 c x2) = conA (NormalC c [x1, x2])
